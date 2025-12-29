@@ -70,6 +70,10 @@ visibility = 'виден' if visibility else 'не виден'
 print('Угол возвышения:', elevation_deg, 'градусов, КА', visibility)
 ```
 
+**Запуск:**
+
+`python ./examples/task.py`
+
 **Вывод:**
 ```
 Угол возвышения: 43.71850935339177 градусов, КА виден
