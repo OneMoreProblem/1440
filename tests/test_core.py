@@ -128,8 +128,9 @@ class TestCalculateElevation:
     
     def test_elevation_calculation_zenith(self):
         """Тест вычисления угла для спутника в зените"""
-        sat_pos_cirs = [0, 0, 7000000]
-        obs_pos_cirs = [0, 0, 6378137]
+        # Явно указываем тип float для всех значений
+        sat_pos_cirs = [0.0, 0.0, 7000000.0]
+        obs_pos_cirs = [0.0, 0.0, 6378137.0]
         
         elevation = calculate_elevation(sat_pos_cirs, obs_pos_cirs)
         
@@ -137,8 +138,9 @@ class TestCalculateElevation:
     
     def test_elevation_returns_number(self):
         """Функция должна возвращать числовое значение"""
-        sat_pos_cirs = [1000000, 0, 0]
-        obs_pos_cirs = [6378137, 0, 0]
+        # Явно указываем тип float для всех значений
+        sat_pos_cirs = [1000000.0, 0.0, 0.0]
+        obs_pos_cirs = [6378137.0, 0.0, 0.0]
         
         elevation = calculate_elevation(sat_pos_cirs, obs_pos_cirs)
         
