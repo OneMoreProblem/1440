@@ -13,12 +13,28 @@ def j2000_to_cirs_precession_only(pos_j2000, jd_days_from_j2000):
         [x, y, z] координаты в системе CIRS (метры)
     """
     T = jd_days_from_j2000 / 36525.0
-    
-    psi = (-0.041775 + 5038.481484 * T + 1.5584175 * T**2) * math.pi / (180 * 3600)
-    phi = (84381.412819 - 46.811016 * T + 0.0511268 * T**2) * math.pi / (180 * 3600)
-    gamma = (-0.052928 + 10.556378 * T + 0.4932044 * T**2) * math.pi / (180 * 3600)
-    eps0 = 84381.406 * math.pi / (180 * 3600)
-    
+
+    # Углы в миллисекундах дуги по IAU 2006 (прецессия без нутации)
+    psi_mas = (5038.481507 * T +
+               0.00000014 * T**2 -
+               0.000000013 * T**3)
+    omega_mas = (84381.406 -
+                 46.836769 * T -
+                 0.00001831 * T**2 +
+                 0.00200340 * T**3 -
+                 5.76e-7 * T**4)
+    chi_mas = (10.556403 * T -
+               0.000010 * T**2 -
+               3.281e-7 * T**3 +
+               0.00000014 * T**4)
+
+    # В радианы
+    arcsec_to_rad = math.pi / (180 * 3600)
+    psi = psi_mas * arcsec_to_rad
+    omega = omega_mas * arcsec_to_rad
+    chi = chi_mas * arcsec_to_rad
+
+    # Матрицы вращения
     def R1(angle):
         c, s = math.cos(angle), math.sin(angle)
         return np.array([[1, 0, 0], [0, c, s], [0, -s, c]])
@@ -26,8 +42,10 @@ def j2000_to_cirs_precession_only(pos_j2000, jd_days_from_j2000):
     def R3(angle):
         c, s = math.cos(angle), math.sin(angle)
         return np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]])
-    
-    P = R3(-gamma) @ R1(phi) @ R3(-psi) @ R1(-eps0)
+
+    # Матрица прецессии IAU 2006 (без нутации)
+    P = R3(chi) @ R1(-omega) @ R3(-psi) @ R1(omega)
+
     return (P @ np.array(pos_j2000)).tolist()
 
 def geodetic_to_itrs(lat_deg, lon_deg, height_m):
