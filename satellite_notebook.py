@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ---
 # jupyter:
 #   jupytext:
@@ -8,7 +9,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.18.1
 #   kernelspec:
-#     display_name: satellite-env
+#     display_name: '1440'
 #     language: python
 #     name: python3
 # ---
@@ -36,7 +37,7 @@
 #    - [4.1 Соответствие функциональным требованиям](#section4-1)
 #    - [4.2 Соответствие техническим требованиям](#section4-2)
 #    - [4.3 Тесты](#section4-3)
-#    - [4.4 Валидация](#section4-4)
+#    - [4.4 Верификация](#section4-4)
 #
 # 5. **[Визуализация результатов](#section5)**
 
@@ -611,6 +612,153 @@ test_j2000_to_cirs_precession()
 test_geodetic_to_itrs()
 test_itrs_to_cirs_rotation()
 test_satellite_visibility()
+
+# %% [markdown]
+# <a id="section4-4"></a>
+# ### 4.4 Верификация
+#
+# Проверим как это работает в сравнении с библиотекой astropy.
+
+# %%
+import numpy as np
+import math
+from astropy.time import Time
+from astropy.coordinates import (
+    CartesianRepresentation,
+    ICRS,
+    CIRS,
+    AltAz,
+    EarthLocation,
+    GCRS
+)
+from astropy import units as u
+
+# Импортируем самописные функции
+from satellite_visibility.core import (
+    j2000_to_cirs_precession_only,
+    geodetic_to_itrs,
+    itrs_to_cirs,
+    calculate_elevation,
+    check_visibility
+)
+
+def test_astropy_full(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days):
+    print("ASTROPY — эталонные преобразования")
+    print("=" * 60)
+
+    time = Time("J2000") + jd_days * u.day
+    
+    # Создаем геоцентрические координаты спутника в GCRS
+    cart = CartesianRepresentation(sat_pos_j2000 * u.m)
+    gcrs = GCRS(cart, obstime=time)
+    
+    # Преобразуем в CIRS
+    cirs_sat = gcrs.transform_to(CIRS(obstime=time))
+    
+    # Создаем местоположение наблюдателя
+    location = EarthLocation.from_geodetic(obs_lon * u.deg, obs_lat * u.deg, obs_h * u.m)
+    
+    # Преобразуем положение наблюдателя в CIRS
+    obs_itrs = location.get_itrs(time)
+    obs_cirs = obs_itrs.transform_to(CIRS(obstime=time))
+    
+    # Вычисляем вектор от наблюдателя к спутнику в CIRS
+    sat_obs_vector = CartesianRepresentation(
+        cirs_sat.cartesian.xyz - obs_cirs.cartesian.xyz
+    )
+    
+    # Создаем AltAz систему координат относительно наблюдателя
+    altaz_frame = AltAz(obstime=time, location=location)
+    
+    # Создаем координаты для вектора от наблюдателя к спутнику
+    topo = CIRS(sat_obs_vector, obstime=time, location=location).transform_to(altaz_frame)
+    
+    print(f"Высота (AltAz): {topo.alt:.4f}")
+    return topo.alt.degree
+
+# Заменяем тест на строке 626 на исправленную версию
+def test_self_written_full(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days):
+    print("\nСАМОПИСНЫЕ ФУНКЦИИ")
+    print("=" * 60)
+
+    sat_pos_cirs = j2000_to_cirs_precession_only(sat_pos_j2000, jd_days)
+    obs_pos_itrs = geodetic_to_itrs(obs_lat, obs_lon, obs_h)
+    obs_pos_cirs = itrs_to_cirs(obs_pos_itrs, jd_days)
+    
+    # Передаём только нужные параметры
+    elevation_deg = calculate_elevation(sat_pos_cirs, obs_pos_cirs)
+    
+    print(f"Высота (самописная): {elevation_deg:.4f}°")
+    return elevation_deg
+
+def compare_steps(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days):
+    print("\nПОШАГОВОЕ СРАВНЕНИЕ")
+    print("=" * 60)
+    
+    time = Time("J2000") + jd_days * u.day
+
+    # 1. J2000 → CIRS (astropy) - геоцентрический подход
+    cart = CartesianRepresentation(sat_pos_j2000 * u.m)
+    gcrs = GCRS(cart, obstime=time)
+    cirs_astropy = gcrs.transform_to(CIRS(obstime=time))
+    print(f"[J2000→CIRS] Astropy (гц): {cirs_astropy.cartesian.xyz.to(u.m)}")
+
+    # Самописное
+    cirs_self = j2000_to_cirs_precession_only(sat_pos_j2000, jd_days)
+    print(f"[J2000→CIRS] Самописное: {np.array(cirs_self) * u.m}")
+
+    # 2. ITRS наблюдателя
+    location = EarthLocation.from_geodetic(obs_lon * u.deg, obs_lat * u.deg, obs_h * u.m)
+    obs_itrs_astropy = location.get_itrs(obstime=time)
+    obs_itrs_self = geodetic_to_itrs(obs_lat, obs_lon, obs_h)
+    print(f"[ITRS] Astropy: {obs_itrs_astropy.cartesian.xyz.to(u.m)}")
+    print(f"[ITRS] Самописное: {np.array(obs_itrs_self) * u.m}")
+
+    # 3. ITRS → CIRS
+    obs_cirs_astropy = obs_itrs_astropy.transform_to(CIRS(obstime=time))
+    obs_cirs_self = itrs_to_cirs(obs_itrs_self, jd_days)
+    print(f"[ITRS→CIRS] Astropy: {obs_cirs_astropy.cartesian.xyz.to(u.m)}")
+    print(f"[ITRS→CIRS] Самописное: {np.array(obs_cirs_self) * u.m}")
+
+    # 4. Вектор от наблюдателя к спутнику
+    vector_astropy = CartesianRepresentation(
+        cirs_astropy.cartesian.xyz - obs_cirs_astropy.cartesian.xyz
+    )
+    vector_self = np.array(cirs_self) - np.array(obs_cirs_self)
+    print(f"[Вектор] Astropy: {vector_astropy.xyz.to(u.m)}")
+    print(f"[Вектор] Самописное: {vector_self * u.m}")
+
+    # 5. Высота
+    altaz_frame = AltAz(obstime=time, location=location)
+    topo = CIRS(vector_astropy, obstime=time, location=location).transform_to(altaz_frame)
+    elev_self, _ = check_visibility(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days, 0)
+    print(f"[Высота] Astropy: {topo.alt:.4f}")
+    print(f"[Высота] Самописное: {elev_self:.4f}")
+
+# Входные данные
+sat_pos_j2000 = [4435144, -2137297, 4670064]
+jd_days = 8084.185608609847
+obs_lat = 45.920266
+obs_lon = -64.342286
+obs_h = 0
+
+print("ДАННЫЕ ЗАДАЧИ:")
+print(f"Спутник (J2000): {sat_pos_j2000}")
+print(f"JD от J2000: {jd_days}")
+print(f"Наблюдатель: lat={obs_lat}, lon={obs_lon}, h={obs_h}")
+print()
+
+# Сравнение финальных результатов
+elev_astropy = test_astropy_full(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days)
+elev_self = test_self_written_full(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days)
+
+print(f"\nСРАВНЕНИЕ РЕЗУЛЬТАТОВ:")
+print(f"  Astropy:     {elev_astropy:.4f}°")
+print(f"  Самописное:  {elev_self:.4f}°")
+print(f"  Разница:     {abs(elev_astropy - elev_self):.4f}°")
+
+# Пошаговое сравнение
+compare_steps(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days)
 
 
 # %% [markdown]
