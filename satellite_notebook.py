@@ -776,7 +776,7 @@ def visualize_satellite_visibility(sat_pos_j2000, obs_lat_deg, obs_lon_deg, obs_
     obs_pos_itrs = geodetic_to_itrs(obs_lat_deg, obs_lon_deg, obs_height_m)
     obs_pos_cirs = itrs_to_cirs(obs_pos_itrs, jd_days_from_j2000)
     
-    elevation_deg = calculate_elevation(sat_pos_cirs, obs_pos_cirs, np.radians(obs_lat_deg))
+    elevation_deg = calculate_elevation(sat_pos_cirs, obs_pos_cirs)
     is_visible = elevation_deg > min_elevation_deg
     
     # Создаем фигуру
@@ -875,6 +875,6 @@ def visualize_satellite_visibility(sat_pos_j2000, obs_lat_deg, obs_lon_deg, obs_
 
 # Пример использования визуализации
 print("Пример визуализации:")
-visualize_satellite_visibility([0, 0, 7000000], 85, 0, 0, 0, 10)
+visualize_satellite_visibility([4435144, -2137297, 4670064], 45.920266, -64.342286, 0 , 8084.185608609847, 15)
 
 # %%
