@@ -130,9 +130,8 @@ class TestCalculateElevation:
         """Тест вычисления угла для спутника в зените"""
         sat_pos_cirs = [0, 0, 7000000]
         obs_pos_cirs = [0, 0, 6378137]
-        obs_lat_rad = math.radians(90)
         
-        elevation = calculate_elevation(sat_pos_cirs, obs_pos_cirs, obs_lat_rad)
+        elevation = calculate_elevation(sat_pos_cirs, obs_pos_cirs)
         
         assert elevation > 80, f"Угол возвышения {elevation}° должен быть близок к 90°"
     
@@ -140,8 +139,7 @@ class TestCalculateElevation:
         """Функция должна возвращать числовое значение"""
         sat_pos_cirs = [1000000, 0, 0]
         obs_pos_cirs = [6378137, 0, 0]
-        obs_lat_rad = 0
         
-        elevation = calculate_elevation(sat_pos_cirs, obs_pos_cirs, obs_lat_rad)
+        elevation = calculate_elevation(sat_pos_cirs, obs_pos_cirs)
         
         assert isinstance(elevation, (int, float)), "Результат должен быть числом"
