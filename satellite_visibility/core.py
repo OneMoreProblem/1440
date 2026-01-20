@@ -1,9 +1,10 @@
 import math
 import numpy as np
 
+
 def j2000_to_cirs_precession_only(pos_j2000, jd_days_from_j2000):
     """
-    Конвертация ECI J2000 в CIRS с учетом только прецессии
+    Конвертация ECI J2000 в CIRS с учетом только прецессии (IAU 2006)
     
     Args:
         pos_j2000: [x, y, z] координаты в системе J2000 (метры)
@@ -96,7 +97,7 @@ def itrs_to_cirs(pos_itrs, jd_days_from_j2000):
     
     return [x_cirs, y_cirs, z_cirs]
 
-def calculate_elevation(sat_pos_cirs, obs_pos_cirs, obs_lat_rad):
+def calculate_elevation(sat_pos_cirs, obs_pos_cirs):
     """
     Вычисление угла возвышения спутника над горизонтом
     
@@ -108,17 +109,21 @@ def calculate_elevation(sat_pos_cirs, obs_pos_cirs, obs_lat_rad):
     Returns:
         угол возвышения в градусах (float)
     """
+    # Вектор от наблюдателя к спутнику
     sat_obs_vec = np.array(sat_pos_cirs) - np.array(obs_pos_cirs)
     vec_length = np.linalg.norm(sat_obs_vec)
     
-    obs_pos = np.array(obs_pos_cirs)
-    z_local = obs_pos / np.linalg.norm(obs_pos)
+    # Локальная вертикаль (направление из центра Земли к наблюдателю)
+    z_local = np.array(obs_pos_cirs)
+    z_local /= np.linalg.norm(z_local)  # Нормируем
     
+    # Проекция вектора на вертикаль
     dot_product = np.dot(sat_obs_vec, z_local)
-    elevation_rad = math.asin(dot_product / vec_length)
-    elevation_deg = math.degrees(elevation_rad)
+    vec_length = np.linalg.norm(sat_obs_vec)
     
-    return elevation_deg
+    # Угол возвышения
+    elevation_rad = math.asin(dot_product / vec_length)
+    return math.degrees(elevation_rad)
 
 def check_visibility(sat_pos_j2000, obs_lat_deg, obs_lon_deg, obs_height_m, 
                     jd_days_from_j2000, min_elevation_deg=0):
