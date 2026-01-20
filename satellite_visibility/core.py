@@ -39,7 +39,7 @@ def j2000_to_cirs_precession_only(pos_j2000, jd_days_from_j2000):
     def R1(angle):
         c, s = math.cos(angle), math.sin(angle)
         return np.array([[1, 0, 0], [0, c, s], [0, -s, c]])
-    
+
     def R3(angle):
         c, s = math.cos(angle), math.sin(angle)
         return np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]])
@@ -104,14 +104,12 @@ def calculate_elevation(sat_pos_cirs, obs_pos_cirs):
     Args:
         sat_pos_cirs: [x, y, z] позиция спутника в CIRS (метры)
         obs_pos_cirs: [x, y, z] позиция наблюдателя в CIRS (метры)
-        obs_lat_rad: широта наблюдателя в радианах (float)
     
     Returns:
         угол возвышения в градусах (float)
     """
     # Вектор от наблюдателя к спутнику
     sat_obs_vec = np.array(sat_pos_cirs) - np.array(obs_pos_cirs)
-    vec_length = np.linalg.norm(sat_obs_vec)
     
     # Локальная вертикаль (направление из центра Земли к наблюдателю)
     z_local = np.array(obs_pos_cirs)
@@ -145,7 +143,10 @@ def check_visibility(sat_pos_j2000, obs_lat_deg, obs_lon_deg, obs_height_m,
     obs_pos_itrs = geodetic_to_itrs(obs_lat_deg, obs_lon_deg, obs_height_m)
     obs_pos_cirs = itrs_to_cirs(obs_pos_itrs, jd_days_from_j2000)
     
-    elevation_deg = calculate_elevation(sat_pos_cirs, obs_pos_cirs, math.radians(obs_lat_deg))
+    elevation_deg = calculate_elevation(
+        sat_pos_cirs, obs_pos_cirs
+    )
+    
     is_visible = elevation_deg > min_elevation_deg
     
     return elevation_deg, is_visible
