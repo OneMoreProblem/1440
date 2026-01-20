@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 # ---
 # jupyter:
 #   jupytext:
@@ -8,7 +9,7 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.18.1
 #   kernelspec:
-#     display_name: satellite-env
+#     display_name: '1440'
 #     language: python
 #     name: python3
 # ---
@@ -36,7 +37,7 @@
 #    - [4.1 Соответствие функциональным требованиям](#section4-1)
 #    - [4.2 Соответствие техническим требованиям](#section4-2)
 #    - [4.3 Тесты](#section4-3)
-#    - [4.4 Валидация](#section4-4)
+#    - [4.4 Верификация](#section4-4)
 #
 # 5. **[Визуализация результатов](#section5)**
 
@@ -160,17 +161,17 @@ import matplotlib.pyplot as plt
 #
 # Поворот точки весеннего равноденствия вдоль эклиптики из-за гравитационного Луны и солнца на Землю
 #
-# $$\psi = \left(-0.041775 + 5038.481484 T + 1.5584175 T^2\right) \frac{\pi}{180 \times 3600}$$
+# $$\psi = \left(5038.481484 T + 0.00000014 T^2 + 0.000000013 T^3 \right ) \frac{\pi}{180 \times 3600}$$
 #
 # Наклон эклиптики к экватору изменение наклона оси Земли к плоскости орбиты.
 #
-# $$\varphi = \left(84381.412819 - 46.811016 T + 0.0511268 T^2\right) \frac{\pi}{180 \times 3600}$$
+# $$\omega = \left(84381.406 - 46.836769 T + 0.00001831 T^2 + 0.00200340 T^3 + 5.76e-7 T^4\right) \frac{\pi}{180 \times 3600}$$
 #
 # Планетарная прецессия, влияние других планет на орбиту Земли
 #
-# $$\gamma = \left(-0.052928 + 10.556378 T + 0.4932044 T^2\right) \frac{\pi}{180 \times 3600}$$
+# $$\chi = \left(10.556378 T + 0.000010 T^2 + 3.281e-7 * T^3 + 0.00000014 T^4\right) \frac{\pi}{180 \times 3600}$$
 #
-# $$\mathbf{P} = \mathbf{R}_3(-\gamma) \times \mathbf{R}_1(\varphi) \times \mathbf{R}_3(-\psi) \times \mathbf{R}_1(-\varepsilon_0)$$
+# $$\mathbf{P} = \mathbf{R}_3(\chi) \times \mathbf{R}_1(-\omega) \times \mathbf{R}_3(-\psi) \times \mathbf{R}_1(-\varepsilon_0)$$
 #
 # Средний наклон Эклиптики J2000
 #
@@ -197,17 +198,38 @@ import matplotlib.pyplot as plt
 # %%
 def j2000_to_cirs_precession_only(pos_j2000, jd_days_from_j2000):
     """
-    Конвертация ECI J2000 в CIRS с учетом только прецессии
-    pos_j2000: [x, y, z] в метрах в системе J2000
-    jd_days_from_j2000: дни от эпохи J2000
+    Конвертация ECI J2000 в CIRS с учетом только прецессии (IAU 2006)
+    
+    Args:
+        pos_j2000: [x, y, z] координаты в системе J2000 (метры)
+        jd_days_from_j2000: дни от эпохи J2000 (float)
+    
+    Returns:
+        [x, y, z] координаты в системе CIRS (метры)
     """
     T = jd_days_from_j2000 / 36525.0
-    
-    psi = (-0.041775 + 5038.481484 * T + 1.5584175 * T**2) * math.pi / (180 * 3600)
-    phi = (84381.412819 - 46.811016 * T + 0.0511268 * T**2) * math.pi / (180 * 3600)
-    gamma = (-0.052928 + 10.556378 * T + 0.4932044 * T**2) * math.pi / (180 * 3600)
-    eps0 = 84381.406 * math.pi / (180 * 3600)
-    
+
+    # Углы в миллисекундах дуги по IAU 2006 (прецессия без нутации)
+    psi_mas = (5038.481507 * T +
+               0.00000014 * T**2 -
+               0.000000013 * T**3)
+    omega_mas = (84381.406 -
+                 46.836769 * T -
+                 0.00001831 * T**2 +
+                 0.00200340 * T**3 -
+                 5.76e-7 * T**4)
+    chi_mas = (10.556403 * T -
+               0.000010 * T**2 -
+               3.281e-7 * T**3 +
+               0.00000014 * T**4)
+
+    # В радианы
+    arcsec_to_rad = math.pi / (180 * 3600)
+    psi = psi_mas * arcsec_to_rad
+    omega = omega_mas * arcsec_to_rad
+    chi = chi_mas * arcsec_to_rad
+
+    # Матрицы вращения
     def R1(angle):
         c, s = math.cos(angle), math.sin(angle)
         return np.array([[1, 0, 0], [0, c, s], [0, -s, c]])
@@ -215,8 +237,10 @@ def j2000_to_cirs_precession_only(pos_j2000, jd_days_from_j2000):
     def R3(angle):
         c, s = math.cos(angle), math.sin(angle)
         return np.array([[c, s, 0], [-s, c, 0], [0, 0, 1]])
-    
-    P = R3(-gamma) @ R1(phi) @ R3(-psi) @ R1(-eps0)
+
+    # Матрица прецессии IAU 2006 (без нутации)
+    P = R3(chi) @ R1(-omega) @ R3(-psi) @ R1(omega)
+
     return (P @ np.array(pos_j2000)).tolist()
 
 
@@ -351,24 +375,31 @@ def itrs_to_cirs(pos_itrs, jd_days_from_j2000):
 #
 
 # %%
-def calculate_elevation(sat_pos_cirs, obs_pos_cirs, obs_lat_rad):
+def calculate_elevation(sat_pos_cirs, obs_pos_cirs):
     """
     Вычисление угла возвышения спутника над горизонтом
-    sat_pos_cirs: [x, y, z] позиция спутника в CIRS
-    obs_pos_cirs: [x, y, z] позиция наблюдателя в CIRS  
-    obs_lat_rad: широта наблюдателя в радианах
+    
+    Args:
+        sat_pos_cirs: [x, y, z] позиция спутника в CIRS (метры)
+        obs_pos_cirs: [x, y, z] позиция наблюдателя в CIRS (метры)
+    
+    Returns:
+        угол возвышения в градусах (float)
     """
+    # Вектор от наблюдателя к спутнику
     sat_obs_vec = np.array(sat_pos_cirs) - np.array(obs_pos_cirs)
+    
+    # Локальная вертикаль (направление из центра Земли к наблюдателю)
+    z_local = np.array(obs_pos_cirs)
+    z_local /= np.linalg.norm(z_local)  # Нормируем
+    
+    # Проекция вектора на вертикаль
+    dot_product = np.dot(sat_obs_vec, z_local)
     vec_length = np.linalg.norm(sat_obs_vec)
     
-    obs_pos = np.array(obs_pos_cirs)
-    z_local = obs_pos / np.linalg.norm(obs_pos)
-    
-    dot_product = np.dot(sat_obs_vec, z_local)
+    # Угол возвышения
     elevation_rad = math.asin(dot_product / vec_length)
-    elevation_deg = math.degrees(elevation_rad)
-    
-    return elevation_deg
+    return math.degrees(elevation_rad)
 
 
 # %% [markdown]
@@ -382,24 +413,27 @@ def check_visibility(sat_pos_j2000, obs_lat_deg, obs_lon_deg, obs_height_m,
                     jd_days_from_j2000, min_elevation_deg=0):
     """
     Проверка видимости спутника
+    
+    Args:
+        sat_pos_j2000: [x, y, z] координаты спутника в J2000 (метры)
+        obs_lat_deg: широта наблюдателя в градусах (float)
+        obs_lon_deg: долгота наблюдателя в градусах (float)
+        obs_height_m: высота наблюдателя в метрах (float)
+        jd_days_from_j2000: дни от эпохи J2000 (float)
+        min_elevation_deg: минимальный угол возвышения в градусах (float)
+    
+    Returns:
+        (elevation_deg, is_visible): угол возвышения и видимость (float, bool)
     """
-    import math
-    
-    # Конвертация спутника J2000 → CIRS
     sat_pos_cirs = j2000_to_cirs_precession_only(sat_pos_j2000, jd_days_from_j2000)
-    
-    # Конвертация наблюдателя геодезические → ITRS → CIRS
     obs_pos_itrs = geodetic_to_itrs(obs_lat_deg, obs_lon_deg, obs_height_m)
     obs_pos_cirs = itrs_to_cirs(obs_pos_itrs, jd_days_from_j2000)
     
-    # Вычисление угла возвышения
-    elevation_deg = calculate_elevation(sat_pos_cirs, obs_pos_cirs, math.radians(obs_lat_deg))
+    elevation_deg = calculate_elevation(
+        sat_pos_cirs, obs_pos_cirs
+    )
     
-    # Проверка видимости
     is_visible = elevation_deg > min_elevation_deg
-    visibility_text = "виден" if is_visible else "не виден"
-    
-    print(f"Угол возвышения: {elevation_deg:.1f} градусов, КА {visibility_text}")
     
     return elevation_deg, is_visible
 
@@ -612,6 +646,153 @@ test_geodetic_to_itrs()
 test_itrs_to_cirs_rotation()
 test_satellite_visibility()
 
+# %% [markdown]
+# <a id="section4-4"></a>
+# ### 4.4 Верификация
+#
+# Проверим как это работает в сравнении с библиотекой astropy.
+
+# %%
+import numpy as np
+import math
+from astropy.time import Time
+from astropy.coordinates import (
+    CartesianRepresentation,
+    ICRS,
+    CIRS,
+    AltAz,
+    EarthLocation,
+    GCRS
+)
+from astropy import units as u
+
+# Импортируем самописные функции
+from satellite_visibility.core import (
+    j2000_to_cirs_precession_only,
+    geodetic_to_itrs,
+    itrs_to_cirs,
+    calculate_elevation,
+    check_visibility
+)
+
+def test_astropy_full(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days):
+    print("ASTROPY — эталонные преобразования")
+    print("=" * 60)
+
+    time = Time("J2000") + jd_days * u.day
+    
+    # Создаем геоцентрические координаты спутника в GCRS
+    cart = CartesianRepresentation(sat_pos_j2000 * u.m)
+    gcrs = GCRS(cart, obstime=time)
+    
+    # Преобразуем в CIRS
+    cirs_sat = gcrs.transform_to(CIRS(obstime=time))
+    
+    # Создаем местоположение наблюдателя
+    location = EarthLocation.from_geodetic(obs_lon * u.deg, obs_lat * u.deg, obs_h * u.m)
+    
+    # Преобразуем положение наблюдателя в CIRS
+    obs_itrs = location.get_itrs(time)
+    obs_cirs = obs_itrs.transform_to(CIRS(obstime=time))
+    
+    # Вычисляем вектор от наблюдателя к спутнику в CIRS
+    sat_obs_vector = CartesianRepresentation(
+        cirs_sat.cartesian.xyz - obs_cirs.cartesian.xyz
+    )
+    
+    # Создаем AltAz систему координат относительно наблюдателя
+    altaz_frame = AltAz(obstime=time, location=location)
+    
+    # Создаем координаты для вектора от наблюдателя к спутнику
+    topo = CIRS(sat_obs_vector, obstime=time, location=location).transform_to(altaz_frame)
+    
+    print(f"Высота (AltAz): {topo.alt:.4f}")
+    return topo.alt.degree
+
+# Заменяем тест на строке 626 на исправленную версию
+def test_self_written_full(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days):
+    print("\nСАМОПИСНЫЕ ФУНКЦИИ")
+    print("=" * 60)
+
+    sat_pos_cirs = j2000_to_cirs_precession_only(sat_pos_j2000, jd_days)
+    obs_pos_itrs = geodetic_to_itrs(obs_lat, obs_lon, obs_h)
+    obs_pos_cirs = itrs_to_cirs(obs_pos_itrs, jd_days)
+    
+    # Передаём только нужные параметры
+    elevation_deg = calculate_elevation(sat_pos_cirs, obs_pos_cirs)
+    
+    print(f"Высота (самописная): {elevation_deg:.4f}°")
+    return elevation_deg
+
+def compare_steps(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days):
+    print("\nПОШАГОВОЕ СРАВНЕНИЕ")
+    print("=" * 60)
+    
+    time = Time("J2000") + jd_days * u.day
+
+    # 1. J2000 → CIRS (astropy) - геоцентрический подход
+    cart = CartesianRepresentation(sat_pos_j2000 * u.m)
+    gcrs = GCRS(cart, obstime=time)
+    cirs_astropy = gcrs.transform_to(CIRS(obstime=time))
+    print(f"[J2000→CIRS] Astropy (гц): {cirs_astropy.cartesian.xyz.to(u.m)}")
+
+    # Самописное
+    cirs_self = j2000_to_cirs_precession_only(sat_pos_j2000, jd_days)
+    print(f"[J2000→CIRS] Самописное: {np.array(cirs_self) * u.m}")
+
+    # 2. ITRS наблюдателя
+    location = EarthLocation.from_geodetic(obs_lon * u.deg, obs_lat * u.deg, obs_h * u.m)
+    obs_itrs_astropy = location.get_itrs(obstime=time)
+    obs_itrs_self = geodetic_to_itrs(obs_lat, obs_lon, obs_h)
+    print(f"[ITRS] Astropy: {obs_itrs_astropy.cartesian.xyz.to(u.m)}")
+    print(f"[ITRS] Самописное: {np.array(obs_itrs_self) * u.m}")
+
+    # 3. ITRS → CIRS
+    obs_cirs_astropy = obs_itrs_astropy.transform_to(CIRS(obstime=time))
+    obs_cirs_self = itrs_to_cirs(obs_itrs_self, jd_days)
+    print(f"[ITRS→CIRS] Astropy: {obs_cirs_astropy.cartesian.xyz.to(u.m)}")
+    print(f"[ITRS→CIRS] Самописное: {np.array(obs_cirs_self) * u.m}")
+
+    # 4. Вектор от наблюдателя к спутнику
+    vector_astropy = CartesianRepresentation(
+        cirs_astropy.cartesian.xyz - obs_cirs_astropy.cartesian.xyz
+    )
+    vector_self = np.array(cirs_self) - np.array(obs_cirs_self)
+    print(f"[Вектор] Astropy: {vector_astropy.xyz.to(u.m)}")
+    print(f"[Вектор] Самописное: {vector_self * u.m}")
+
+    # 5. Высота
+    altaz_frame = AltAz(obstime=time, location=location)
+    topo = CIRS(vector_astropy, obstime=time, location=location).transform_to(altaz_frame)
+    elev_self, _ = check_visibility(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days, 0)
+    print(f"[Высота] Astropy: {topo.alt:.4f}")
+    print(f"[Высота] Самописное: {elev_self:.4f}")
+
+# Входные данные
+sat_pos_j2000 = [4435144, -2137297, 4670064]
+jd_days = 8084.185608609847
+obs_lat = 45.920266
+obs_lon = -64.342286
+obs_h = 0
+
+print("ДАННЫЕ ЗАДАЧИ:")
+print(f"Спутник (J2000): {sat_pos_j2000}")
+print(f"JD от J2000: {jd_days}")
+print(f"Наблюдатель: lat={obs_lat}, lon={obs_lon}, h={obs_h}")
+print()
+
+# Сравнение финальных результатов
+elev_astropy = test_astropy_full(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days)
+elev_self = test_self_written_full(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days)
+
+print(f"\nСРАВНЕНИЕ РЕЗУЛЬТАТОВ:")
+print(f"  Astropy:     {elev_astropy:.4f}°")
+print(f"  Самописное:  {elev_self:.4f}°")
+print(f"  Разница:     {abs(elev_astropy - elev_self):.4f}°")
+
+# Пошаговое сравнение
+compare_steps(sat_pos_j2000, obs_lat, obs_lon, obs_h, jd_days)
+
 
 # %% [markdown]
 # <a id="section5"></a>
@@ -628,7 +809,7 @@ def visualize_satellite_visibility(sat_pos_j2000, obs_lat_deg, obs_lon_deg, obs_
     obs_pos_itrs = geodetic_to_itrs(obs_lat_deg, obs_lon_deg, obs_height_m)
     obs_pos_cirs = itrs_to_cirs(obs_pos_itrs, jd_days_from_j2000)
     
-    elevation_deg = calculate_elevation(sat_pos_cirs, obs_pos_cirs, np.radians(obs_lat_deg))
+    elevation_deg = calculate_elevation(sat_pos_cirs, obs_pos_cirs)
     is_visible = elevation_deg > min_elevation_deg
     
     # Создаем фигуру
@@ -727,6 +908,6 @@ def visualize_satellite_visibility(sat_pos_j2000, obs_lat_deg, obs_lon_deg, obs_
 
 # Пример использования визуализации
 print("Пример визуализации:")
-visualize_satellite_visibility([0, 0, 7000000], 85, 0, 0, 0, 10)
+visualize_satellite_visibility([4435144, -2137297, 4670064], 45.920266, -64.342286, 0 , 8084.185608609847, 15)
 
 # %%
